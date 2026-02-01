@@ -1,5 +1,6 @@
 # Talk_to_myDB using GROQ (LLaMA3)
-
+from flask import Flask, request, jsonify
+from flask_cors import CORS
 from groq import Groq
 from sqlalchemy import create_engine, text
 from tabulate import tabulate
@@ -10,6 +11,12 @@ import os
 # 1️⃣ LOAD ENV VARIABLES
 
 load_dotenv()
+
+#allow React to call the backend
+app = Flask(__name__)
+CORS(app)
+
+
 
 # 2️⃣ GROQ CLIENT
 
@@ -121,41 +128,55 @@ def execute_sql(sql):
 
 
 
-# 8️⃣ MAIN PROGRAM
+# 8️⃣ API ROUTE FOR REACT
+
+# Cache schema at startup
+_schema_str = None
+
+
+def get_schema_str():
+    global _schema_str
+    if _schema_str is None:
+        schema = fetch_db_schema()
+        _schema_str = schema_to_prompt(schema)
+    return _schema_str
+
+
+@app.route("/talktomydb", methods=["POST"])
+def talk_to_db():
+    """Accept natural language query from React, return SQL and results."""
+    data = request.get_json() or {}
+    need = data.get("need", "").strip()
+
+    if not need:
+        return jsonify({"error": "Missing 'need' field", "sql": "", "result": []}), 400
+
+    try:
+        schema_str = get_schema_str()
+        sql_query = nl_to_sql(schema_str, need)
+        validate_sql(sql_query)
+        rows = execute_sql(sql_query)
+        # Convert RowMapping to plain dict for JSON
+        result = [dict(row) for row in rows]
+        return jsonify({"sql": sql_query, "result": result})
+    except Exception as e:
+        return jsonify({
+            "sql": "",
+            "result": str(e),
+            "error": str(e)
+        }), 200  # Return 200 so React can display the error message
+
+
+@app.route("/health", methods=["GET"])
+def health():
+    """Health check for React/dev tools."""
+    return jsonify({"status": "ok"})
+
+
+# 9️⃣ RUN FLASK SERVER
 
 if __name__ == "__main__":
-
     print("\n🔍 Loading database schema...")
-    schema = fetch_db_schema()
-    schema_str = schema_to_prompt(schema)
-
-    print("\n📂 Available Tables:")
-    for table in schema.keys():
-        print(f" - {table}")
-
-    while True:
-        user_query = input(
-            "\n🧑 Ask your DB (or type 'exit'): "
-        ).strip()
-
-        if user_query.lower() == "exit":
-            print("👋 Exiting Talk_to_myDB")
-            break
-
-        try:
-            sql_query = nl_to_sql(schema_str, user_query)
-            validate_sql(sql_query)
-
-            print("\n📝 Generated SQL:")
-            print(sql_query)
-
-            results = execute_sql(sql_query)
-
-            print("\n📊 Results:")
-            if results:
-                print(tabulate(results, headers="keys", tablefmt="grid"))
-            else:
-                print("(No rows found)")
-
-        except Exception as e:
-            print("❌ Error:", e)
+    get_schema_str()
+    print("\n📂 Schema loaded. Starting Flask server on http://localhost:5000")
+    app.run(host="0.0.0.0", port=5000, debug=True)
