@@ -1,4 +1,4 @@
 .env
-app(open api keys).py
-api testing.py
-
+node_modules
+cab.sqlite3
+deployment.txt
