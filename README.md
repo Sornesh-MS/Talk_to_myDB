@@ -41,9 +41,9 @@ It converts natural language questions into safe SQL `SELECT` queries using **Gr
 
 1. Download and Insatll all the PREREQUISITES
 2. python app.py(for backend)(http://localhost:5000)
-3. for forntend
-   3.1 npm install
-   3.2 npm run dev(vite)(http://localhost:5173 (or similar))
+3. for forntend:
+   * npm install
+   * npm run dev(vite)(http://localhost:5173 (or similar))
 4.Open frontend URL in browser
 5. Enter a question like:
    "Show average cost per ride"
